@@ -22,13 +22,6 @@ impl CompileError {
         }
     }
 
-    fn unsupported_expression(name: &str, pos: Position) -> Self {
-        Self::new(
-            format!("unsupported expression in step 14: {name}"),
-            Some(pos),
-        )
-    }
-
     fn unresolved_identifier(name: &str, pos: Position) -> Self {
         Self::new(format!("unresolved identifier: {name}"), Some(pos))
     }
@@ -292,7 +285,7 @@ impl Compiler {
                     }
                     _ => {
                         return Err(CompileError::new(
-                            format!("unsupported prefix operator in step 14: {operator}"),
+                            format!("unsupported prefix operator in step 15: {operator}"),
                             Some(*pos),
                         ));
                     }
@@ -359,7 +352,7 @@ impl Compiler {
                     ">=" => Opcode::Ge,
                     _ => {
                         return Err(CompileError::new(
-                            format!("unsupported infix operator in step 14: {operator}"),
+                            format!("unsupported infix operator in step 15: {operator}"),
                             Some(*pos),
                         ));
                     }
@@ -411,17 +404,25 @@ impl Compiler {
                 }
                 self.emit(Opcode::Call, &[arguments.len()], *pos)?;
             }
-            Expression::ArrayLiteral { pos, .. } => {
-                // TODO(step-15): compile array literals.
-                return Err(CompileError::unsupported_expression("ArrayLiteral", *pos));
+            Expression::ArrayLiteral { elements, pos } => {
+                for element in elements {
+                    self.compile_expression(element)?;
+                }
+                self.emit(Opcode::Array, &[elements.len()], *pos)?;
             }
-            Expression::HashLiteral { pos, .. } => {
-                // TODO(step-15): compile hash literals.
-                return Err(CompileError::unsupported_expression("HashLiteral", *pos));
+            Expression::HashLiteral { pairs, pos } => {
+                for (key, value) in pairs {
+                    self.compile_expression(key)?;
+                    self.compile_expression(value)?;
+                }
+                // Hash operand uses pair count; VM applies runtime checks (step-17).
+                // TODO(step-17): enforce UNHASHABLE, INVALID_INDEX, and missing-key/oob => null.
+                self.emit(Opcode::Hash, &[pairs.len()], *pos)?;
             }
-            Expression::Index { pos, .. } => {
-                // TODO(step-15): compile index expressions.
-                return Err(CompileError::unsupported_expression("Index", *pos));
+            Expression::Index { left, index, pos } => {
+                self.compile_expression(left)?;
+                self.compile_expression(index)?;
+                self.emit(Opcode::Index, &[], *pos)?;
             }
         }
 

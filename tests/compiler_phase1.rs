@@ -253,20 +253,13 @@ fn compiles_builtin_identifier_load() {
 }
 
 #[test]
-fn returns_deterministic_errors_for_unsupported_constructs() {
-    let cases = [
-        ("[1,2,3]", "unsupported expression in step 14: ArrayLiteral"),
-        (
-            "{\"a\": 1}",
-            "unsupported expression in step 14: HashLiteral",
-        ),
-        ("arr[0]", "unsupported expression in step 14: Index"),
-    ];
-
-    for (input, expected_message) in cases {
-        let err = compile_error(input);
-        assert_eq!(err.message, expected_message, "input={input}");
-        assert!(err.pos.is_some(), "input={input}");
+fn collections_and_index_are_supported() {
+    for input in ["[1,2,3];", "{\"a\": 1};", "let arr = [1,2]; arr[0];"] {
+        let chunk = compile_input(input).expect("compile should succeed");
+        assert!(
+            !chunk.instructions.is_empty(),
+            "expected emitted instructions for input={input}"
+        );
     }
 }
 

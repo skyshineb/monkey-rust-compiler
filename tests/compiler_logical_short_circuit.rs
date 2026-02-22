@@ -237,11 +237,13 @@ fn non_logical_infix_regression_unchanged() {
 }
 
 #[test]
-fn unsupported_constructs_still_error() {
-    let cases = [("[1, 2]", "unsupported expression in step 14: ArrayLiteral")];
-
-    for (input, expected) in cases {
-        let err = compile_input(input).expect_err("expected compile error");
-        assert_eq!(err.message, expected, "input={input}");
+fn collections_compile_alongside_logical_ops() {
+    for input in ["[1, 2] && true;", "{\"a\": 1}[\"a\"] || false;"] {
+        let chunk = compile_input(input).expect("compile should succeed");
+        let ops = decode_instructions(&chunk)
+            .iter()
+            .map(|(_, op, _)| *op)
+            .collect::<Vec<_>>();
+        assert!(ops.contains(&Opcode::ReturnValue), "input={input}");
     }
 }

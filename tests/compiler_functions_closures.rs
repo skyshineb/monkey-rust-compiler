@@ -321,19 +321,18 @@ fn position_metadata_for_closure_and_call() {
 }
 
 #[test]
-fn collections_index_still_unsupported() {
+fn collections_index_supported_with_functions() {
     let cases = [
-        ("[1,2]", "unsupported expression in step 14: ArrayLiteral"),
-        (
-            "{\"a\":1}",
-            "unsupported expression in step 14: HashLiteral",
-        ),
-        ("arr[0]", "unsupported expression in step 14: Index"),
+        "fn() { [1, 2, 3][0] };",
+        "fn(a) { {\"x\": a}[\"x\"] };",
+        "let arr = [fn(x) { x }(1), 2]; arr[0];",
     ];
 
-    for (input, expected) in cases {
-        let err = compile_input(input).expect_err("expected compile error");
-        assert_eq!(err.message, expected, "input={input}");
-        assert!(err.pos.is_some(), "input={input}");
+    for input in cases {
+        let chunk = compile_input(input).expect("compile should succeed");
+        assert!(
+            !chunk.instructions.is_empty(),
+            "expected instructions for input={input}"
+        );
     }
 }

@@ -151,13 +151,10 @@ fn logical_expression_regression_with_terminal_return_value() {
 }
 
 #[test]
-fn unsupported_statement_errors_remain_deterministic() {
-    let cases = [("[1, 2]", "unsupported expression in step 14: ArrayLiteral")];
-
-    for (input, expected) in cases {
-        let err = compile_input(input).expect_err("expected compile error");
-        assert_eq!(err.message, expected, "input={input}");
-        assert!(err.pos.is_some(), "input={input}");
+fn collections_compile_in_statement_suite() {
+    for input in ["[1, 2];", "{\"a\": 1};", "let xs = [1]; xs[0];"] {
+        let chunk = compile_input(input).expect("compile should succeed");
+        assert!(!chunk.instructions.is_empty(), "input={input}");
     }
 }
 
