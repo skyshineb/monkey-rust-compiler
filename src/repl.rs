@@ -32,6 +32,7 @@ pub struct ReplSession {
     history: Vec<String>,
     bindings: BTreeSet<String>,
     pending_lines: Vec<String>,
+    history_output_len: usize,
 }
 
 impl ReplSession {
@@ -59,15 +60,25 @@ impl ReplSession {
 
         let mut all = self.history.clone();
         all.extend(self.pending_lines.iter().cloned());
+        if let Some(name) = self.single_let_binding_name(&pending_source) {
+            all.push(format!("{name};"));
+        }
         let source = all.join("\n");
 
         let result = match run_source(&source) {
             Ok(outcome) => {
+                let total_output_len = outcome.output.len();
+                let new_output = if self.history_output_len <= total_output_len {
+                    outcome.output[self.history_output_len..].to_vec()
+                } else {
+                    outcome.output.clone()
+                };
+                self.history_output_len = total_output_len;
                 self.history.extend(self.pending_lines.iter().cloned());
                 self.remember_bindings_from_source(&pending_source);
                 ReplEvalResult::Value {
                     result: outcome.result,
-                    output: outcome.output,
+                    output: new_output,
                 }
             }
             Err(RunnerError::Parse(errors)) => ReplEvalResult::ParseErrors(errors),
@@ -190,6 +201,19 @@ impl ReplSession {
             if let Statement::Let { name, .. } = stmt {
                 self.bindings.insert(name.value);
             }
+        }
+    }
+
+    fn single_let_binding_name(&self, source: &str) -> Option<String> {
+        let mut parser = Parser::new(Lexer::new(source));
+        let program = parser.parse_program();
+        if !parser.errors().is_empty() || program.statements.len() != 1 {
+            return None;
+        }
+
+        match &program.statements[0] {
+            Statement::Let { name, .. } => Some(name.value.clone()),
+            _ => None,
         }
     }
 

@@ -160,10 +160,7 @@ fn executes_builtins_and_captures_puts_output() {
     let mut vm = compile_to_vm("puts(\"a\", 1, true);");
     let result = vm.run().expect("vm run should succeed");
     assert_eq!(result.as_ref(), &Object::Null);
-    assert_eq!(
-        vm.take_output(),
-        vec!["a".to_string(), "1".to_string(), "true".to_string()]
-    );
+    assert_eq!(vm.take_output(), vec!["a1true".to_string()]);
 }
 
 #[test]

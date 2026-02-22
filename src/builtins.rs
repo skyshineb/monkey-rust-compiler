@@ -119,9 +119,12 @@ pub fn execute_builtin(
             }
         }
         "puts" => {
-            for arg in args {
-                output.push(arg.inspect());
-            }
+            let line = args
+                .iter()
+                .map(|arg| arg.inspect())
+                .collect::<Vec<_>>()
+                .join("");
+            output.push(line);
             Ok(Object::Null.rc())
         }
         _ => Err(BuiltinError {

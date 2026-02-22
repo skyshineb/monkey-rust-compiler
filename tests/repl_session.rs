@@ -5,7 +5,7 @@ fn state_persists_across_lines() {
     let mut repl = ReplSession::new();
 
     match repl.eval_line("let a = 10;") {
-        ReplEvalResult::Value { .. } => {}
+        ReplEvalResult::Value { result, .. } => assert_eq!(result.inspect(), "10"),
         other => panic!("expected value result, got {other:?}"),
     }
 
@@ -19,15 +19,44 @@ fn state_persists_across_lines() {
 fn closures_persist_across_lines() {
     let mut repl = ReplSession::new();
     match repl.eval_line("let newAdder = fn(a) { fn(b) { a + b } };") {
-        ReplEvalResult::Value { .. } => {}
+        ReplEvalResult::Value { result, .. } => assert_eq!(result.inspect(), "<closure>"),
         other => panic!("expected value result, got {other:?}"),
     }
     match repl.eval_line("let addTwo = newAdder(2);") {
-        ReplEvalResult::Value { .. } => {}
+        ReplEvalResult::Value { result, .. } => assert_eq!(result.inspect(), "<closure>"),
         other => panic!("expected value result, got {other:?}"),
     }
     match repl.eval_line("addTwo(3);") {
         ReplEvalResult::Value { result, .. } => assert_eq!(result.inspect(), "5"),
+        other => panic!("expected value result, got {other:?}"),
+    }
+}
+
+#[test]
+fn puts_output_is_not_replayed_from_previous_lines() {
+    let mut repl = ReplSession::new();
+    match repl.eval_line("let x = 5;") {
+        ReplEvalResult::Value { .. } => {}
+        other => panic!("expected value result, got {other:?}"),
+    }
+    match repl.eval_line("let y = 6;") {
+        ReplEvalResult::Value { .. } => {}
+        other => panic!("expected value result, got {other:?}"),
+    }
+
+    match repl.eval_line("puts(x);") {
+        ReplEvalResult::Value { result, output } => {
+            assert_eq!(result.inspect(), "null");
+            assert_eq!(output, vec!["5".to_string()]);
+        }
+        other => panic!("expected value result, got {other:?}"),
+    }
+
+    match repl.eval_line("puts(\"y = \", y);") {
+        ReplEvalResult::Value { result, output } => {
+            assert_eq!(result.inspect(), "null");
+            assert_eq!(output, vec!["y = 6".to_string()]);
+        }
         other => panic!("expected value result, got {other:?}"),
     }
 }

@@ -1,6 +1,6 @@
 INPUT: let a = 10;
 OUTPUT:
-RESULT: null
+RESULT: 10
 
 INPUT: a + 5;
 OUTPUT:
@@ -8,11 +8,11 @@ RESULT: 15
 
 INPUT: let newAdder = fn(a) { fn(b) { a + b } };
 OUTPUT:
-RESULT: null
+RESULT: <closure>
 
 INPUT: let addTwo = newAdder(2);
 OUTPUT:
-RESULT: null
+RESULT: <closure>
 
 INPUT: addTwo(3);
 OUTPUT:

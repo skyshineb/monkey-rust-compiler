@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::env;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::path::{Path, PathBuf};

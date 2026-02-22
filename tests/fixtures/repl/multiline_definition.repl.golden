@@ -8,7 +8,7 @@ OUTPUT:
 
 INPUT: };
 OUTPUT:
-RESULT: null
+RESULT: <closure>
 
 INPUT: add(3, 4);
 OUTPUT:
