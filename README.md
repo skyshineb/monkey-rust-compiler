@@ -63,6 +63,18 @@ make goldens-update
 UPDATE_GOLDENS=1 cargo test compat_
 ```
 
+## Java parity conformance
+
+Step 21 adds Java↔Rust parity checks:
+
+```bash
+make conformance
+# or
+MONKEY_JAVA_REF_CMD="java -jar path/to/ref.jar" cargo test conformance_ -- --nocapture
+```
+
+See `docs/conformance.md` for command contract, fixture layout, and mismatch triage.
+
 ## Release readiness
 
 ```bash
@@ -80,11 +92,11 @@ make bench
 ## Repository layout
 
 - `src/` runtime/compiler/parser/CLI implementation
-- `tests/` unit, integration, and compatibility golden suites
+- `tests/` unit, integration, compatibility goldens, and conformance parity harness
 - `examples/` runnable Monkey programs
 - `bench/` benchmark programs
 - `scripts/` developer and CI helper scripts
 
 ## Compatibility note
 
-Do not change protocol-visible behavior without validating against `COMPATIBILITY.md`, `PROTOCOL.md`, and compatibility goldens.
+Do not change protocol-visible behavior without validating against `COMPATIBILITY.md`, `PROTOCOL.md`, compatibility goldens, and conformance parity checks.

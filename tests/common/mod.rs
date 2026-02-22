@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+pub mod conformance;
+
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};

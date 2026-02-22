@@ -1,4 +1,4 @@
-.PHONY: fmt fmt-check test compat check goldens-update release-check bench
+.PHONY: fmt fmt-check test compat check goldens-update release-check bench conformance
 
 fmt:
 	cargo fmt --all
@@ -22,3 +22,6 @@ release-check:
 
 bench:
 	./scripts/bench.sh
+
+conformance:
+	./scripts/conformance-check.sh

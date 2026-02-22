@@ -25,3 +25,19 @@ jobs:
 
       - name: Compatibility suite
         run: cargo test compat_
+
+  conformance-java:
+    if: ${{ env.MONKEY_JAVA_REF_CMD != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Java parity suite
+        run: ./scripts/conformance-check.sh
