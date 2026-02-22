@@ -10,11 +10,11 @@ run_once() {
   if [[ -n "$BIN_PATH" ]]; then
     "$BIN_PATH" bench "$file"
   else
-    cargo run --quiet -- bench "$file"
+    cargo run --quiet --release -- bench "$file"
   fi
 }
 
-echo "Running Monkey benchmarks (3 rounds each)"
+echo "Running Monkey benchmarks (3 rounds each, release profile)"
 for file in "${BENCH_FILES[@]}"; do
   echo "--- $(basename "$file") ---"
   for round in 1 2 3; do

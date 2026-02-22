@@ -24,7 +24,7 @@ Examples:
 cargo run -- run examples/hello.monkey
 cargo run -- --tokens examples/control_flow.monkey
 cargo run -- --ast examples/closures.monkey
-cargo run -- bench bench/b1.monkey
+cargo run --release -- bench bench/b1.monkey
 ```
 
 ## REPL
@@ -86,7 +86,7 @@ make release-check
 ```bash
 make bench
 # or pass a compiled monkey binary path:
-./scripts/bench.sh ./target/debug/monkey
+./scripts/bench.sh ./target/release/monkey
 ```
 
 ## Repository layout
