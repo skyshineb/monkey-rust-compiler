@@ -1,0 +1,11 @@
+# persistent state
+let a = 10;
+a + 5;
+let newAdder = fn(a) { fn(b) { a + b } };
+let addTwo = newAdder(2);
+addTwo(3);
+:tokens let b = 1;
+:ast 1 + 2 * 3;
+:env
+:help
+:quit

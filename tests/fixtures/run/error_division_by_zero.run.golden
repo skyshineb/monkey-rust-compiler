@@ -1,0 +1,7 @@
+STATUS: error
+KIND: runtime
+PUTS: <none>
+ERROR:
+Error[DIVISION_BY_ZERO] at 3:3: division by zero
+Stack trace:
+  at <main>(0 args) @ 3:3

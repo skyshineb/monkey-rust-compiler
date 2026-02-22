@@ -1,0 +1,7 @@
+STATUS: error
+KIND: runtime
+PUTS: <none>
+ERROR:
+Error[UNHASHABLE] at 1:1: unusable as hash key: ARRAY
+Stack trace:
+  at <main>(0 args) @ 1:1

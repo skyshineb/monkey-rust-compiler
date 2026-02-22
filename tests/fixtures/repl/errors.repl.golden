@@ -1,0 +1,24 @@
+INPUT: let = ;
+OUTPUT:
+PARSE_ERROR:
+            __,____
+   .--.  .-"     "-.  .--.
+  / .. \/  .-. .-.  \/ .. \
+ | |  '|  /   Y   \  |'  | |
+ | \   \  \ 0 | 0 /  /   / |
+  \ '- ,\.-"`` ``"-./, -' /
+   `'-' /_   ^ ^   _\ '-'`
+       |  \._   _./  |
+       \   \ `~` /   /
+        '._ '-=-' _.'
+           '-----'
+Woops! We ran into some monkey business here!
+ parser errors:
+  - 1:5: expected next token to be Ident, got Assign
+
+INPUT: 1 / 0;
+OUTPUT:
+RUNTIME_ERROR:
+Error[DIVISION_BY_ZERO] at 1:3: division by zero
+Stack trace:
+  at <main>(0 args) @ 1:3

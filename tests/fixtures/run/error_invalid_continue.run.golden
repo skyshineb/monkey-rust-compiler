@@ -1,0 +1,7 @@
+STATUS: error
+KIND: runtime
+PUTS: <none>
+ERROR:
+Error[INVALID_CONTROL_FLOW] at 1:1: continue used outside of loop
+Stack trace:
+  at <main>(0 args) @ 1:1

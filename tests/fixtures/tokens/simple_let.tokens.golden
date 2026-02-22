@@ -1,0 +1,6 @@
+Let('let') @ 1:1
+Ident('a') @ 1:5
+Assign('=') @ 1:7
+Int('1') @ 1:9
+Semicolon(';') @ 1:10
+Eof('') @ 2:1

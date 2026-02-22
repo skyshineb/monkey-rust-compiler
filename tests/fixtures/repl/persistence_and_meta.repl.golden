@@ -1,0 +1,53 @@
+INPUT: let a = 10;
+OUTPUT:
+RESULT: null
+
+INPUT: a + 5;
+OUTPUT:
+RESULT: 15
+
+INPUT: let newAdder = fn(a) { fn(b) { a + b } };
+OUTPUT:
+RESULT: null
+
+INPUT: let addTwo = newAdder(2);
+OUTPUT:
+RESULT: null
+
+INPUT: addTwo(3);
+OUTPUT:
+RESULT: 5
+
+INPUT: :tokens let b = 1;
+OUTPUT:
+META:
+TOKENS:
+  Let('let') @ 1:1
+  Ident('b') @ 1:5
+  Assign('=') @ 1:7
+  Int('1') @ 1:9
+  Semicolon(';') @ 1:10
+  Eof('') @ 1:11
+
+INPUT: :ast 1 + 2 * 3;
+OUTPUT:
+META:
+AST:
+  (1 + (2 * 3));
+
+INPUT: :env
+OUTPUT:
+META:
+ENV:
+  a = 10
+  addTwo = <closure>
+  newAdder = <closure>
+
+INPUT: :help
+OUTPUT:
+META:
+Commands: :help, :tokens [input], :ast [input], :env, :quit, :exit
+
+INPUT: :quit
+OUTPUT:
+EXIT

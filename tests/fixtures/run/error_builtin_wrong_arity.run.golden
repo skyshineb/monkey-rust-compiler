@@ -1,0 +1,7 @@
+STATUS: error
+KIND: runtime
+PUTS: <none>
+ERROR:
+Error[WRONG_ARGUMENT_COUNT] at 1:4: len expected 1 argument(s), got 2
+Stack trace:
+  at <main>(0 args) @ 1:4

@@ -1,0 +1,5 @@
+STATUS: error
+KIND: parse
+PUTS: <none>
+ERROR:
+- 1:5: expected next token to be Ident, got Assign

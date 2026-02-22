@@ -1,10 +1,16 @@
+use std::collections::BTreeSet;
 use std::io::{self, Write};
 
+use crate::ast::Statement;
 use crate::compiler::CompileError;
+use crate::lexer::Lexer;
 use crate::object::ObjectRef;
 use crate::parse_error::ParseError;
+use crate::parser::Parser;
 use crate::runner::{dump_ast, format_tokens, run_source, RunnerError};
 use crate::runtime_error::RuntimeError;
+
+const MONKEY_FACE: &str = "            __,____\n   .--.  .-\"     \"-.  .--.\n  / .. \\/  .-. .-.  \\/ .. \\\n | |  '|  /   Y   \\  |'  | |\n | \\   \\  \\ 0 | 0 /  /   / |\n  \\ '- ,\\.-\"`` ``\"-./, -' /\n   `'-' /_   ^ ^   _\\ '-'`\n       |  \\._   _./  |\n       \\   \\ `~` /   /\n        '._ '-=-' _.'\n           '-----'";
 
 #[derive(Debug, Clone)]
 pub enum ReplEvalResult {
@@ -24,6 +30,7 @@ pub enum ReplEvalResult {
 #[derive(Debug, Default)]
 pub struct ReplSession {
     history: Vec<String>,
+    bindings: BTreeSet<String>,
 }
 
 impl ReplSession {
@@ -48,6 +55,7 @@ impl ReplSession {
         match run_source(&source) {
             Ok(outcome) => {
                 self.history.push(line.to_string());
+                self.remember_bindings_from_line(line);
                 ReplEvalResult::Value {
                     result: outcome.result,
                     output: outcome.output,
@@ -87,10 +95,7 @@ impl ReplSession {
                     println!("{}", result.inspect());
                 }
                 ReplEvalResult::ParseErrors(errors) => {
-                    println!("Parse errors:");
-                    for err in errors {
-                        println!("- {err}");
-                    }
+                    println!("{}", format_parse_errors(&errors));
                 }
                 ReplEvalResult::CompileError(err) => {
                     println!("Compile error:");
@@ -156,12 +161,59 @@ impl ReplSession {
                     }
                 }
             }
-            "env" => {
-                // TODO(step-19): surface actual runtime/global environment snapshot in REPL.
-                ReplEvalResult::MetaOutput("ENV:\n  (tracked in session source)".to_string())
-            }
+            "env" => ReplEvalResult::MetaOutput(self.render_env()),
             "quit" | "exit" => ReplEvalResult::ExitRequested,
             _ => ReplEvalResult::MetaOutput(format!("Unknown command: :{cmd}")),
         }
     }
+
+    fn remember_bindings_from_line(&mut self, line: &str) {
+        let mut parser = Parser::new(Lexer::new(line));
+        let program = parser.parse_program();
+        if !parser.errors().is_empty() {
+            return;
+        }
+
+        for stmt in program.statements {
+            if let Statement::Let { name, .. } = stmt {
+                self.bindings.insert(name.value);
+            }
+        }
+    }
+
+    fn render_env(&self) -> String {
+        if self.bindings.is_empty() {
+            return "ENV:\n  (empty)".to_string();
+        }
+
+        let mut lines = vec!["ENV:".to_string()];
+        for name in &self.bindings {
+            let value = self.resolve_binding_value(name);
+            lines.push(format!("  {name} = {value}"));
+        }
+        lines.join("\n")
+    }
+
+    fn resolve_binding_value(&self, name: &str) -> String {
+        let mut all = self.history.clone();
+        all.push(format!("{name};"));
+        match run_source(&all.join("\n")) {
+            Ok(outcome) => outcome.result.inspect(),
+            Err(RunnerError::Parse(errs)) => format!("<parse error: {}>", errs.len()),
+            Err(RunnerError::Compile(err)) => format!("<compile error: {err}>"),
+            Err(RunnerError::Runtime(err)) => format!("<runtime error: {}>", err.error_type.code()),
+        }
+    }
+}
+
+pub fn format_parse_errors(errors: &[ParseError]) -> String {
+    let mut lines = vec![
+        MONKEY_FACE.to_string(),
+        "Woops! We ran into some monkey business here!".to_string(),
+        " parser errors:".to_string(),
+    ];
+    for err in errors {
+        lines.push(format!("  - {err}"));
+    }
+    lines.join("\n")
 }
