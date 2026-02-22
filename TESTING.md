@@ -13,6 +13,8 @@ Fixture-driven compatibility tests live under `tests/compat_*.rs` and use files 
 
 - Full suite: `cargo test`
 - Compatibility-only: `cargo test compat_`
+- Local quality gate: `make check`
+- Release gate: `make release-check`
 
 ## Updating goldens
 
@@ -22,9 +24,11 @@ To regenerate intentionally:
 
 ```bash
 UPDATE_GOLDENS=1 cargo test compat_
+# or
+make goldens-update
 ```
 
-Then re-run without `UPDATE_GOLDENS` to verify the new snapshots are stable.
+Then re-run without `UPDATE_GOLDENS` to verify snapshots are stable.
 
 ## Rules
 

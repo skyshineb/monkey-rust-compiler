@@ -1,0 +1,15 @@
+INPUT: let add = fn(a, b) {
+OUTPUT:
+(empty)
+
+INPUT: a + b
+OUTPUT:
+(empty)
+
+INPUT: };
+OUTPUT:
+RESULT: null
+
+INPUT: add(3, 4);
+OUTPUT:
+RESULT: 7

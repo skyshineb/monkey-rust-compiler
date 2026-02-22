@@ -8,6 +8,8 @@ fn args(parts: &[&str]) -> Vec<String> {
 fn parses_valid_commands() {
     assert_eq!(parse_args(&args(&[])), Ok(Command::Repl));
     assert_eq!(parse_args(&args(&["repl"])), Ok(Command::Repl));
+    assert_eq!(parse_args(&args(&["--help"])), Ok(Command::Help));
+    assert_eq!(parse_args(&args(&["-h"])), Ok(Command::Help));
     assert_eq!(
         parse_args(&args(&["run", "a.monkey"])),
         Ok(Command::Run {

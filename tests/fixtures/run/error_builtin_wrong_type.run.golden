@@ -4,4 +4,4 @@ PUTS: <none>
 ERROR:
 Error[INVALID_ARGUMENT_TYPE] at 1:4: len expected STRING or ARRAY, got INTEGER
 Stack trace:
-  at <main>(0 args) @ 1:4
+  at <repl>(0 args) @ 1:4

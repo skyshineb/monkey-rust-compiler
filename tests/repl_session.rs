@@ -51,6 +51,36 @@ fn repl_handles_errors_deterministically() {
 }
 
 #[test]
+fn repl_multiline_buffering_and_meta_gating() {
+    let mut repl = ReplSession::new();
+
+    match repl.eval_line("let add = fn(a, b) {") {
+        ReplEvalResult::Empty => {}
+        other => panic!("expected buffered empty, got {other:?}"),
+    }
+
+    match repl.eval_line(":help") {
+        ReplEvalResult::Empty => {}
+        other => panic!("expected buffered empty for meta text, got {other:?}"),
+    }
+
+    match repl.eval_line("a + b") {
+        ReplEvalResult::Empty => {}
+        other => panic!("expected buffered empty, got {other:?}"),
+    }
+
+    match repl.eval_line("};") {
+        ReplEvalResult::ParseErrors(errors) => assert!(!errors.is_empty()),
+        other => panic!("expected parse error from buffered :help line, got {other:?}"),
+    }
+
+    match repl.eval_line(":help") {
+        ReplEvalResult::MetaOutput(text) => assert!(text.contains("Commands:")),
+        other => panic!("expected meta output after buffer reset, got {other:?}"),
+    }
+}
+
+#[test]
 fn meta_commands_work() {
     let mut repl = ReplSession::new();
 

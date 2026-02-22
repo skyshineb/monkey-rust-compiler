@@ -5,4 +5,4 @@ ERROR:
 Error[UNSUPPORTED_OPERATION] at 2:3: reached end of function without return
 Stack trace:
   at f(0 args) @ 2:3
-  at <main>(0 args) @ 1:1
+  at <repl>(0 args) @ 1:1

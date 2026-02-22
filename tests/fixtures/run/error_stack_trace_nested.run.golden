@@ -6,4 +6,4 @@ Error[TYPE_MISMATCH] at 1:21: unsupported operand types for Add: INTEGER and BOO
 Stack trace:
   at bad(1 args) @ 1:21
   at mid(1 args) @ 3:4
-  at <main>(0 args) @ 1:1
+  at <repl>(0 args) @ 1:1

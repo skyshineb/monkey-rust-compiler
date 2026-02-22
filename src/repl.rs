@@ -26,11 +26,12 @@ pub enum ReplEvalResult {
     ExitRequested,
 }
 
-/// Stateful REPL session that preserves definitions across lines.
+/// Stateful REPL session that preserves definitions across inputs.
 #[derive(Debug, Default)]
 pub struct ReplSession {
     history: Vec<String>,
     bindings: BTreeSet<String>,
+    pending_lines: Vec<String>,
 }
 
 impl ReplSession {
@@ -39,23 +40,31 @@ impl ReplSession {
     }
 
     pub fn eval_line(&mut self, line: &str) -> ReplEvalResult {
-        let line = line.trim();
-        if line.is_empty() {
+        let raw = line.trim_end_matches(['\n', '\r']);
+        let trimmed = raw.trim();
+
+        if trimmed.is_empty() {
             return ReplEvalResult::Empty;
         }
 
-        if line.starts_with(':') {
-            return self.eval_meta(line);
+        if self.pending_lines.is_empty() && trimmed.starts_with(':') {
+            return self.eval_meta(trimmed);
+        }
+
+        self.pending_lines.push(raw.to_string());
+        let pending_source = self.pending_lines.join("\n");
+        if !Self::is_complete_source(&pending_source) {
+            return ReplEvalResult::Empty;
         }
 
         let mut all = self.history.clone();
-        all.push(line.to_string());
+        all.extend(self.pending_lines.iter().cloned());
         let source = all.join("\n");
 
-        match run_source(&source) {
+        let result = match run_source(&source) {
             Ok(outcome) => {
-                self.history.push(line.to_string());
-                self.remember_bindings_from_line(line);
+                self.history.extend(self.pending_lines.iter().cloned());
+                self.remember_bindings_from_source(&pending_source);
                 ReplEvalResult::Value {
                     result: outcome.result,
                     output: outcome.output,
@@ -64,7 +73,10 @@ impl ReplSession {
             Err(RunnerError::Parse(errors)) => ReplEvalResult::ParseErrors(errors),
             Err(RunnerError::Compile(err)) => ReplEvalResult::CompileError(err),
             Err(RunnerError::Runtime(err)) => ReplEvalResult::RuntimeError(err),
-        }
+        };
+
+        self.pending_lines.clear();
+        result
     }
 
     pub fn run_stdio(&mut self) -> i32 {
@@ -167,8 +179,8 @@ impl ReplSession {
         }
     }
 
-    fn remember_bindings_from_line(&mut self, line: &str) {
-        let mut parser = Parser::new(Lexer::new(line));
+    fn remember_bindings_from_source(&mut self, source: &str) {
+        let mut parser = Parser::new(Lexer::new(source));
         let program = parser.parse_program();
         if !parser.errors().is_empty() {
             return;
@@ -201,8 +213,61 @@ impl ReplSession {
             Ok(outcome) => outcome.result.inspect(),
             Err(RunnerError::Parse(errs)) => format!("<parse error: {}>", errs.len()),
             Err(RunnerError::Compile(err)) => format!("<compile error: {err}>"),
-            Err(RunnerError::Runtime(err)) => format!("<runtime error: {}>", err.error_type.code()),
+            Err(RunnerError::Runtime(err)) => {
+                format!("<runtime error: {}>", err.error_type.code())
+            }
         }
+    }
+
+    fn is_complete_source(source: &str) -> bool {
+        let mut paren = 0i32;
+        let mut brace = 0i32;
+        let mut bracket = 0i32;
+        let mut in_string = false;
+
+        for line in source.lines() {
+            let mut chars = line.chars().peekable();
+            while let Some(ch) = chars.next() {
+                if in_string {
+                    if ch == '"' {
+                        in_string = false;
+                    }
+                    continue;
+                }
+
+                if ch == '#' {
+                    break;
+                }
+
+                match ch {
+                    '"' => in_string = true,
+                    '(' => paren += 1,
+                    ')' => {
+                        paren -= 1;
+                        if paren < 0 {
+                            return true;
+                        }
+                    }
+                    '{' => brace += 1,
+                    '}' => {
+                        brace -= 1;
+                        if brace < 0 {
+                            return true;
+                        }
+                    }
+                    '[' => bracket += 1,
+                    ']' => {
+                        bracket -= 1;
+                        if bracket < 0 {
+                            return true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        !in_string && paren == 0 && brace == 0 && bracket == 0
     }
 }
 

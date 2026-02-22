@@ -46,7 +46,7 @@ pub struct Vm {
 impl Vm {
     pub fn new(chunk: Chunk) -> Self {
         let main_function = Rc::new(CompiledFunctionObject {
-            name: Some("<main>".to_string()),
+            name: Some("<repl>".to_string()),
             num_params: 0,
             num_locals: 0,
             instructions: chunk.instructions.clone(),

@@ -4,4 +4,4 @@ PUTS: <none>
 ERROR:
 Error[INVALID_INDEX] at 1:2: index operator not supported: INTEGER
 Stack trace:
-  at <main>(0 args) @ 1:2
+  at <repl>(0 args) @ 1:2
