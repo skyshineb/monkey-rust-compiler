@@ -238,13 +238,7 @@ fn non_logical_infix_regression_unchanged() {
 
 #[test]
 fn unsupported_constructs_still_error() {
-    let cases = [
-        (
-            "fn(x) { x }",
-            "unsupported expression in step 13: FunctionLiteral",
-        ),
-        ("[1, 2]", "unsupported expression in step 13: ArrayLiteral"),
-    ];
+    let cases = [("[1, 2]", "unsupported expression in step 14: ArrayLiteral")];
 
     for (input, expected) in cases {
         let err = compile_input(input).expect_err("expected compile error");

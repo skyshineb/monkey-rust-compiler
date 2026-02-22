@@ -152,13 +152,7 @@ fn logical_expression_regression_with_terminal_return_value() {
 
 #[test]
 fn unsupported_statement_errors_remain_deterministic() {
-    let cases = [
-        (
-            "fn(x) { x }",
-            "unsupported expression in step 13: FunctionLiteral",
-        ),
-        ("[1, 2]", "unsupported expression in step 13: ArrayLiteral"),
-    ];
+    let cases = [("[1, 2]", "unsupported expression in step 14: ArrayLiteral")];
 
     for (input, expected) in cases {
         let err = compile_input(input).expect_err("expected compile error");

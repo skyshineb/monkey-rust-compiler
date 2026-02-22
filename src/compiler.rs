@@ -1,10 +1,11 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::rc::Rc;
 
-use crate::ast::{BlockStatement, Expression, Program, Statement};
+use crate::ast::{BlockStatement, Expression, Identifier, Program, Statement};
 use crate::bytecode::{make, BytecodeError, Chunk, Opcode};
-use crate::object::Object;
+use crate::object::{CompiledFunctionObject, Object};
 use crate::position::Position;
-use crate::symbol_table::{define_builtins, Symbol, SymbolScope, SymbolTable};
+use crate::symbol_table::{define_builtins, Symbol, SymbolScope, SymbolTable, SymbolTableRef};
 
 /// Deterministic compile-time error for unsupported or invalid compiler input.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,7 +24,7 @@ impl CompileError {
 
     fn unsupported_expression(name: &str, pos: Position) -> Self {
         Self::new(
-            format!("unsupported expression in step 13: {name}"),
+            format!("unsupported expression in step 14: {name}"),
             Some(pos),
         )
     }
@@ -42,7 +43,6 @@ impl Display for CompileError {
     }
 }
 
-/// Phase-1 compiler for basic expressions and let statements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct EmittedInstruction {
     opcode: Opcode,
@@ -57,14 +57,25 @@ struct LoopContext {
     loop_pos: Position,
 }
 
-/// Phase-1 compiler for basic expressions and let statements.
-#[derive(Debug)]
-pub struct Compiler {
-    chunk: Chunk,
-    symbol_table: crate::symbol_table::SymbolTableRef,
+#[derive(Debug, Clone, Default)]
+struct CompilationScope {
+    instructions: Vec<u8>,
+    positions: Vec<(usize, Position)>,
     last_instruction: Option<EmittedInstruction>,
     previous_instruction: Option<EmittedInstruction>,
     loop_stack: Vec<LoopContext>,
+}
+
+/// Compiler for Monkey bytecode.
+#[derive(Debug)]
+pub struct Compiler {
+    chunk: Chunk,
+    symbol_table: SymbolTableRef,
+    last_instruction: Option<EmittedInstruction>,
+    previous_instruction: Option<EmittedInstruction>,
+    loop_stack: Vec<LoopContext>,
+    scopes: Vec<CompilationScope>,
+    scope_index: usize,
 }
 
 impl Compiler {
@@ -78,6 +89,8 @@ impl Compiler {
             last_instruction: None,
             previous_instruction: None,
             loop_stack: Vec::new(),
+            scopes: Vec::new(),
+            scope_index: 0,
         }
     }
 
@@ -111,9 +124,21 @@ impl Compiler {
     pub fn compile_statement(&mut self, stmt: &Statement) -> Result<(), CompileError> {
         match stmt {
             Statement::Let { name, value, pos } => {
-                self.compile_expression(value)?;
-                let symbol = self.symbol_table.borrow_mut().define(name.value.clone());
+                match value {
+                    Expression::FunctionLiteral {
+                        parameters,
+                        body,
+                        pos: fn_pos,
+                    } => self.compile_function_literal(
+                        parameters,
+                        body,
+                        *fn_pos,
+                        Some(name.value.clone()),
+                    )?,
+                    _ => self.compile_expression(value)?,
+                }
 
+                let symbol = self.symbol_table.borrow_mut().define(name.value.clone());
                 match symbol.scope {
                     SymbolScope::Global => {
                         self.emit(Opcode::SetGlobal, &[symbol.index], *pos)?;
@@ -146,7 +171,7 @@ impl Compiler {
                 pos,
             } => {
                 let loop_start = self.current_offset();
-                self.loop_stack.push(LoopContext {
+                self.current_loop_stack_mut().push(LoopContext {
                     continue_target: loop_start,
                     break_jumps: Vec::new(),
                     loop_pos: *pos,
@@ -164,7 +189,7 @@ impl Compiler {
                 self.emit_pop(*pos)?;
                 let loop_end = self.current_offset();
 
-                let loop_ctx = self.loop_stack.pop().ok_or_else(|| {
+                let loop_ctx = self.current_loop_stack_mut().pop().ok_or_else(|| {
                     CompileError::new("while loop context stack underflow", Some(*pos))
                 })?;
                 for break_jump in loop_ctx.break_jumps {
@@ -172,12 +197,12 @@ impl Compiler {
                 }
             }
             Statement::Break { pos } => {
-                if self.loop_stack.is_empty() {
+                if self.current_loop_stack().is_empty() {
                     // TODO(step-17): VM will translate this opcode into INVALID_CONTROL_FLOW.
                     self.emit(Opcode::InvalidBreak, &[], *pos)?;
                 } else {
                     let break_jump = self.emit_jump(Opcode::Jump, *pos)?;
-                    if let Some(loop_ctx) = self.current_loop_mut() {
+                    if let Some(loop_ctx) = self.current_loop_stack_mut().last_mut() {
                         loop_ctx.break_jumps.push(break_jump);
                     } else {
                         return Err(CompileError::new(
@@ -188,7 +213,7 @@ impl Compiler {
                 }
             }
             Statement::Continue { pos } => {
-                if let Some(loop_ctx) = self.current_loop() {
+                if let Some(loop_ctx) = self.current_loop_stack().last() {
                     self.emit(Opcode::Jump, &[loop_ctx.continue_target], *pos)?;
                 } else {
                     // TODO(step-17): VM will translate this opcode into INVALID_CONTROL_FLOW.
@@ -200,9 +225,8 @@ impl Compiler {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub(crate) fn compile_block(&mut self, block: &BlockStatement) -> Result<(), CompileError> {
-        // TODO(step-14): function-body compilation will reuse statement-context block compilation.
+        // TODO(step-14): function-body compilation reuses statement-context block compilation.
         for stmt in &block.statements {
             self.compile_statement(stmt)?;
         }
@@ -268,7 +292,7 @@ impl Compiler {
                     }
                     _ => {
                         return Err(CompileError::new(
-                            format!("unsupported prefix operator in step 13: {operator}"),
+                            format!("unsupported prefix operator in step 14: {operator}"),
                             Some(*pos),
                         ));
                     }
@@ -282,7 +306,6 @@ impl Compiler {
             } => {
                 match operator.as_str() {
                     "&&" => {
-                        // TODO(step-12): reuse jump patching helpers for control-flow expressions/statements.
                         self.compile_expression(left)?;
                         let false_jump = self.emit_jump(Opcode::JumpIfFalse, *pos)?;
                         self.emit_pop(*pos)?;
@@ -301,7 +324,6 @@ impl Compiler {
                         return Ok(());
                     }
                     "||" => {
-                        // TODO(step-12): reuse jump patching helpers for control-flow expressions/statements.
                         self.compile_expression(left)?;
                         let rhs_jump = self.emit_jump(Opcode::JumpIfFalse, *pos)?;
                         self.emit_pop(*pos)?;
@@ -337,7 +359,7 @@ impl Compiler {
                     ">=" => Opcode::Ge,
                     _ => {
                         return Err(CompileError::new(
-                            format!("unsupported infix operator in step 13: {operator}"),
+                            format!("unsupported infix operator in step 14: {operator}"),
                             Some(*pos),
                         ));
                     }
@@ -371,16 +393,23 @@ impl Compiler {
                 let end_offset = self.current_offset();
                 self.patch_jump(end_jump, end_offset)?;
             }
-            Expression::FunctionLiteral { pos, .. } => {
-                // TODO(step-14): compile function literals and closures.
-                return Err(CompileError::unsupported_expression(
-                    "FunctionLiteral",
-                    *pos,
-                ));
+            Expression::FunctionLiteral {
+                parameters,
+                body,
+                pos,
+            } => {
+                self.compile_function_literal(parameters, body, *pos, None)?;
             }
-            Expression::Call { pos, .. } => {
-                // TODO(step-14): compile function calls.
-                return Err(CompileError::unsupported_expression("Call", *pos));
+            Expression::Call {
+                function,
+                arguments,
+                pos,
+            } => {
+                self.compile_expression(function)?;
+                for arg in arguments {
+                    self.compile_expression(arg)?;
+                }
+                self.emit(Opcode::Call, &[arguments.len()], *pos)?;
             }
             Expression::ArrayLiteral { pos, .. } => {
                 // TODO(step-15): compile array literals.
@@ -397,6 +426,87 @@ impl Compiler {
         }
 
         Ok(())
+    }
+
+    fn compile_function_literal(
+        &mut self,
+        parameters: &[Identifier],
+        body: &BlockStatement,
+        pos: Position,
+        inferred_name: Option<String>,
+    ) -> Result<(), CompileError> {
+        self.enter_scope();
+
+        if let Some(name) = &inferred_name {
+            self.symbol_table
+                .borrow_mut()
+                .define_function_name(name.clone());
+        }
+
+        for param in parameters {
+            self.symbol_table.borrow_mut().define(param.value.clone());
+        }
+
+        self.compile_block(body)?;
+
+        if self.last_instruction_is(Opcode::Pop) {
+            self.replace_last_pop_with_return_value(pos)?;
+        } else if !self.last_instruction_is(Opcode::ReturnValue)
+            && !self.last_instruction_is(Opcode::Return)
+        {
+            self.emit(Opcode::Return, &[], pos)?;
+        }
+
+        let free_symbols = self.symbol_table.borrow().free_symbols.clone();
+        let num_locals = self.symbol_table.borrow().num_definitions;
+        let num_params = parameters.len();
+
+        let scope = self.leave_scope()?;
+
+        for free in &free_symbols {
+            self.emit_for_symbol_load(free, pos)?;
+        }
+
+        let function = Object::CompiledFunction(Rc::new(CompiledFunctionObject {
+            name: inferred_name,
+            num_params,
+            num_locals,
+            instructions: scope.instructions,
+            positions: scope.positions,
+        }));
+
+        let const_idx = self.add_constant(function, pos);
+        self.emit(Opcode::Closure, &[const_idx, free_symbols.len()], pos)?;
+        Ok(())
+    }
+
+    fn enter_scope(&mut self) {
+        self.scopes.push(CompilationScope::default());
+        self.scope_index += 1;
+
+        let enclosed = SymbolTable::new_enclosed(self.symbol_table.clone()).into_ref();
+        self.symbol_table = enclosed;
+    }
+
+    fn leave_scope(&mut self) -> Result<CompilationScope, CompileError> {
+        if self.scope_index == 0 {
+            return Err(CompileError::new(
+                "cannot leave compiler scope: already at root scope",
+                None,
+            ));
+        }
+
+        let scope = self.scopes.pop().ok_or_else(|| {
+            CompileError::new("cannot leave compiler scope: scope stack underflow", None)
+        })?;
+        self.scope_index -= 1;
+
+        let outer = self.symbol_table.borrow().outer.clone().ok_or_else(|| {
+            CompileError::new("cannot leave scope: missing outer symbol table", None)
+        })?;
+        self.symbol_table = outer;
+
+        Ok(scope)
     }
 
     pub fn compile(&mut self, program: &Program) -> Result<(), CompileError> {
@@ -418,14 +528,16 @@ impl Compiler {
         pos: Position,
     ) -> Result<usize, CompileError> {
         let bytes = make(op, operands).map_err(|err| self.bytecode_error(op, pos, err))?;
-        let offset = self.chunk.push_bytes(&bytes);
-        self.chunk.record_pos(offset, pos);
+        let offset = self.current_offset();
+        self.current_instructions_mut().extend_from_slice(&bytes);
+        self.current_positions_mut().push((offset, pos));
+        self.current_positions_mut().sort_by_key(|(off, _)| *off);
         self.set_last_instruction(op, offset);
         Ok(offset)
     }
 
     fn current_offset(&self) -> usize {
-        self.chunk.instructions.len()
+        self.current_instructions().len()
     }
 
     fn emit_jump(&mut self, op: Opcode, pos: Position) -> Result<usize, CompileError> {
@@ -433,18 +545,18 @@ impl Compiler {
     }
 
     fn patch_jump(&mut self, jump_offset: usize, target_offset: usize) -> Result<(), CompileError> {
-        if jump_offset >= self.chunk.instructions.len() {
+        if jump_offset >= self.current_instructions().len() {
             return Err(CompileError::new(
                 format!(
                     "invalid jump patch offset {} for instruction length {}",
                     jump_offset,
-                    self.chunk.instructions.len()
+                    self.current_instructions().len()
                 ),
                 None,
             ));
         }
 
-        let opcode_byte = self.chunk.instructions[jump_offset];
+        let opcode_byte = self.current_instructions()[jump_offset];
         let Some(opcode) = Opcode::from_byte(opcode_byte) else {
             return Err(CompileError::new(
                 format!("cannot patch unknown opcode byte {opcode_byte} at {jump_offset}"),
@@ -475,48 +587,48 @@ impl Compiler {
         })?;
 
         let end = jump_offset + patched.len();
-        if end > self.chunk.instructions.len() {
+        if end > self.current_instructions().len() {
             return Err(CompileError::new(
                 format!(
                     "patched jump overflows instruction buffer: {}..{} of {}",
                     jump_offset,
                     end,
-                    self.chunk.instructions.len()
+                    self.current_instructions().len()
                 ),
                 None,
             ));
         }
 
-        self.chunk.instructions[jump_offset..end].copy_from_slice(&patched);
+        self.current_instructions_mut()[jump_offset..end].copy_from_slice(&patched);
         Ok(())
     }
 
     fn replace_instruction(&mut self, offset: usize, bytes: &[u8]) -> Result<(), CompileError> {
         let end = offset + bytes.len();
-        if end > self.chunk.instructions.len() {
+        if end > self.current_instructions().len() {
             return Err(CompileError::new(
                 format!(
                     "replacement instruction out of bounds: {}..{} of {}",
                     offset,
                     end,
-                    self.chunk.instructions.len()
+                    self.current_instructions().len()
                 ),
                 None,
             ));
         }
-        self.chunk.instructions[offset..end].copy_from_slice(bytes);
+        self.current_instructions_mut()[offset..end].copy_from_slice(bytes);
         Ok(())
     }
 
     fn remove_last_instruction(&mut self) -> Result<(), CompileError> {
-        let Some(last) = self.last_instruction else {
+        let Some(last) = self.current_last_instruction() else {
             return Err(CompileError::new(
                 "cannot remove last instruction: no instructions emitted",
                 None,
             ));
         };
 
-        self.chunk.instructions.truncate(last.offset);
+        self.current_instructions_mut().truncate(last.offset);
         self.record_last_instruction_from_tail()?;
         Ok(())
     }
@@ -532,16 +644,22 @@ impl Compiler {
     }
 
     fn set_last_instruction(&mut self, opcode: Opcode, offset: usize) {
-        self.previous_instruction = self.last_instruction;
-        self.last_instruction = Some(EmittedInstruction { opcode, offset });
+        if self.scope_index == 0 {
+            self.previous_instruction = self.last_instruction;
+            self.last_instruction = Some(EmittedInstruction { opcode, offset });
+        } else if let Some(scope) = self.scopes.last_mut() {
+            scope.previous_instruction = scope.last_instruction;
+            scope.last_instruction = Some(EmittedInstruction { opcode, offset });
+        }
     }
 
     fn record_last_instruction_from_tail(&mut self) -> Result<(), CompileError> {
         let mut decoded = Vec::new();
         let mut offset = 0;
+        let instructions = self.current_instructions().to_vec();
 
-        while offset < self.chunk.instructions.len() {
-            let byte = self.chunk.instructions[offset];
+        while offset < instructions.len() {
+            let byte = instructions[offset];
             let Some(opcode) = Opcode::from_byte(byte) else {
                 return Err(CompileError::new(
                     format!("unknown opcode byte {byte} at offset {offset}"),
@@ -551,7 +669,7 @@ impl Compiler {
             let def = crate::bytecode::lookup_definition(opcode);
             let operand_len: usize = def.operand_widths.iter().sum();
             let end = offset + 1 + operand_len;
-            if end > self.chunk.instructions.len() {
+            if end > instructions.len() {
                 return Err(CompileError::new(
                     format!(
                         "truncated instruction while rebuilding instruction tracking at offset {offset}"
@@ -564,23 +682,39 @@ impl Compiler {
             offset = end;
         }
 
-        self.last_instruction = decoded.last().copied();
-        self.previous_instruction = if decoded.len() > 1 {
+        let last = decoded.last().copied();
+        let prev = if decoded.len() > 1 {
             Some(decoded[decoded.len() - 2])
         } else {
             None
         };
+
+        if self.scope_index == 0 {
+            self.last_instruction = last;
+            self.previous_instruction = prev;
+        } else if let Some(scope) = self.scopes.last_mut() {
+            scope.last_instruction = last;
+            scope.previous_instruction = prev;
+        }
         Ok(())
     }
 
+    fn current_last_instruction(&self) -> Option<EmittedInstruction> {
+        if self.scope_index == 0 {
+            self.last_instruction
+        } else {
+            self.scopes.last().and_then(|s| s.last_instruction)
+        }
+    }
+
     fn last_instruction_is(&self, opcode: Opcode) -> bool {
-        self.last_instruction
+        self.current_last_instruction()
             .map(|ins| ins.opcode == opcode)
             .unwrap_or(false)
     }
 
     fn replace_last_pop_with_return_value(&mut self, pos: Position) -> Result<(), CompileError> {
-        let Some(last) = self.last_instruction else {
+        let Some(last) = self.current_last_instruction() else {
             return Err(CompileError::new(
                 "cannot replace last Pop: no instructions emitted",
                 Some(pos),
@@ -600,10 +734,7 @@ impl Compiler {
         let bytes = make(Opcode::ReturnValue, &[])
             .map_err(|err| self.bytecode_error(Opcode::ReturnValue, pos, err))?;
         self.replace_instruction(last.offset, &bytes)?;
-        self.last_instruction = Some(EmittedInstruction {
-            opcode: Opcode::ReturnValue,
-            offset: last.offset,
-        });
+        self.set_last_instruction(Opcode::ReturnValue, last.offset);
         Ok(())
     }
 
@@ -636,13 +767,7 @@ impl Compiler {
                 self.emit(Opcode::GetFree, &[symbol.index], pos)?;
             }
             SymbolScope::Function => {
-                return Err(CompileError::new(
-                    format!(
-                        "unsupported function symbol load in step 13: {}",
-                        symbol.name
-                    ),
-                    Some(pos),
-                ));
+                self.emit(Opcode::CurrentClosure, &[], pos)?;
             }
         }
         Ok(())
@@ -658,12 +783,44 @@ impl Compiler {
         )
     }
 
-    fn current_loop(&self) -> Option<&LoopContext> {
-        self.loop_stack.last()
+    fn current_instructions(&self) -> &Vec<u8> {
+        if self.scope_index == 0 {
+            &self.chunk.instructions
+        } else {
+            &self.scopes[self.scope_index - 1].instructions
+        }
     }
 
-    fn current_loop_mut(&mut self) -> Option<&mut LoopContext> {
-        self.loop_stack.last_mut()
+    fn current_instructions_mut(&mut self) -> &mut Vec<u8> {
+        if self.scope_index == 0 {
+            &mut self.chunk.instructions
+        } else {
+            &mut self.scopes[self.scope_index - 1].instructions
+        }
+    }
+
+    fn current_positions_mut(&mut self) -> &mut Vec<(usize, Position)> {
+        if self.scope_index == 0 {
+            &mut self.chunk.positions
+        } else {
+            &mut self.scopes[self.scope_index - 1].positions
+        }
+    }
+
+    fn current_loop_stack(&self) -> &Vec<LoopContext> {
+        if self.scope_index == 0 {
+            &self.loop_stack
+        } else {
+            &self.scopes[self.scope_index - 1].loop_stack
+        }
+    }
+
+    fn current_loop_stack_mut(&mut self) -> &mut Vec<LoopContext> {
+        if self.scope_index == 0 {
+            &mut self.loop_stack
+        } else {
+            &mut self.scopes[self.scope_index - 1].loop_stack
+        }
     }
 }
 

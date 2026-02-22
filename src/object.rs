@@ -1,3 +1,4 @@
+use crate::position::Position;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::rc::Rc;
 
@@ -18,7 +19,8 @@ pub struct CompiledFunctionObject {
     pub name: Option<String>,
     pub num_params: usize,
     pub num_locals: usize,
-    pub instructions_len: usize,
+    pub instructions: Vec<u8>,
+    pub positions: Vec<(usize, Position)>,
 }
 
 /// Placeholder closure object metadata.

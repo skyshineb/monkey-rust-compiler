@@ -35,6 +35,10 @@ fn opcode_definition_metadata_is_stable() {
     assert_eq!(closure.name, "Closure");
     assert_eq!(closure.operand_widths, &[2, 1]);
 
+    let current_closure = lookup_definition(Opcode::CurrentClosure);
+    assert_eq!(current_closure.name, "CurrentClosure");
+    assert_eq!(current_closure.operand_widths, &[]);
+
     let add = lookup_definition(Opcode::Add);
     assert_eq!(add.name, "Add");
     assert_eq!(add.operand_widths, &[]);

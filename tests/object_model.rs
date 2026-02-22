@@ -3,6 +3,7 @@ use std::rc::Rc;
 use monkey_rust_compiler::object::{
     BuiltinObject, ClosureObject, CompiledFunctionObject, HashKey, Object,
 };
+use monkey_rust_compiler::position::Position;
 
 fn int(v: i64) -> Rc<Object> {
     Object::Integer(v).rc()
@@ -18,7 +19,8 @@ fn type_name_is_stable_for_all_supported_variants() {
         name: Some("adder".to_string()),
         num_params: 2,
         num_locals: 1,
-        instructions_len: 42,
+        instructions: vec![1, 2, 3],
+        positions: vec![(0, Position::new(1, 1))],
     });
     let closure = Rc::new(ClosureObject {
         function: Rc::clone(&compiled),
@@ -75,7 +77,8 @@ fn hash_key_is_only_defined_for_hashable_types() {
         name: None,
         num_params: 0,
         num_locals: 0,
-        instructions_len: 0,
+        instructions: vec![],
+        positions: vec![],
     });
     let closure = Rc::new(ClosureObject {
         function: Rc::clone(&compiled),
@@ -102,20 +105,23 @@ fn inspect_formatting_is_deterministic() {
         name: Some("sum".to_string()),
         num_params: 2,
         num_locals: 2,
-        instructions_len: 10,
+        instructions: vec![1, 2, 3],
+        positions: vec![(0, Position::new(1, 1))],
     }));
     let compiled_anon = Object::CompiledFunction(Rc::new(CompiledFunctionObject {
         name: None,
         num_params: 0,
         num_locals: 0,
-        instructions_len: 0,
+        instructions: vec![],
+        positions: vec![],
     }));
     let closure = Object::Closure(Rc::new(ClosureObject {
         function: Rc::new(CompiledFunctionObject {
             name: Some("sum".to_string()),
             num_params: 2,
             num_locals: 2,
-            instructions_len: 10,
+            instructions: vec![1],
+            positions: vec![(0, Position::new(1, 1))],
         }),
         free: vec![int(99)],
     }));
