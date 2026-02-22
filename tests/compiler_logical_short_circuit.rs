@@ -239,12 +239,11 @@ fn non_logical_infix_regression_unchanged() {
 #[test]
 fn unsupported_constructs_still_error() {
     let cases = [
-        ("if (true) { 1 }", "unsupported expression in step 12: If"),
         (
             "fn(x) { x }",
-            "unsupported expression in step 12: FunctionLiteral",
+            "unsupported expression in step 13: FunctionLiteral",
         ),
-        ("[1, 2]", "unsupported expression in step 12: ArrayLiteral"),
+        ("[1, 2]", "unsupported expression in step 13: ArrayLiteral"),
     ];
 
     for (input, expected) in cases {

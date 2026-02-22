@@ -154,11 +154,10 @@ fn logical_expression_regression_with_terminal_return_value() {
 fn unsupported_statement_errors_remain_deterministic() {
     let cases = [
         (
-            "while (true) { }",
-            "unsupported statement in step 12: While",
+            "fn(x) { x }",
+            "unsupported expression in step 13: FunctionLiteral",
         ),
-        ("break;", "unsupported statement in step 12: Break"),
-        ("continue;", "unsupported statement in step 12: Continue"),
+        ("[1, 2]", "unsupported expression in step 13: ArrayLiteral"),
     ];
 
     for (input, expected) in cases {

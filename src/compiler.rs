@@ -21,16 +21,9 @@ impl CompileError {
         }
     }
 
-    fn unsupported_statement(name: &str, pos: Position) -> Self {
-        Self::new(
-            format!("unsupported statement in step 12: {name}"),
-            Some(pos),
-        )
-    }
-
     fn unsupported_expression(name: &str, pos: Position) -> Self {
         Self::new(
-            format!("unsupported expression in step 12: {name}"),
+            format!("unsupported expression in step 13: {name}"),
             Some(pos),
         )
     }
@@ -56,6 +49,14 @@ struct EmittedInstruction {
     offset: usize,
 }
 
+#[derive(Debug, Clone)]
+struct LoopContext {
+    continue_target: usize,
+    break_jumps: Vec<usize>,
+    #[allow(dead_code)]
+    loop_pos: Position,
+}
+
 /// Phase-1 compiler for basic expressions and let statements.
 #[derive(Debug)]
 pub struct Compiler {
@@ -63,6 +64,7 @@ pub struct Compiler {
     symbol_table: crate::symbol_table::SymbolTableRef,
     last_instruction: Option<EmittedInstruction>,
     previous_instruction: Option<EmittedInstruction>,
+    loop_stack: Vec<LoopContext>,
 }
 
 impl Compiler {
@@ -75,6 +77,7 @@ impl Compiler {
             symbol_table: root.into_ref(),
             last_instruction: None,
             previous_instruction: None,
+            loop_stack: Vec::new(),
         }
     }
 
@@ -89,7 +92,12 @@ impl Compiler {
             .map(Statement::pos)
             .unwrap_or_default();
 
-        if self.last_instruction_is(Opcode::Pop) {
+        let ends_with_expression = matches!(
+            program.statements.last(),
+            Some(Statement::Expression { .. })
+        );
+
+        if ends_with_expression && self.last_instruction_is(Opcode::Pop) {
             self.replace_last_pop_with_return_value(terminal_pos)?;
         } else if !self.last_instruction_is(Opcode::ReturnValue)
             && !self.last_instruction_is(Opcode::Return)
@@ -132,14 +140,60 @@ impl Compiler {
                 self.compile_expression(value)?;
                 self.emit(Opcode::ReturnValue, &[], *pos)?;
             }
-            Statement::While { pos, .. } => {
-                return Err(CompileError::unsupported_statement("While", *pos));
+            Statement::While {
+                condition,
+                body,
+                pos,
+            } => {
+                let loop_start = self.current_offset();
+                self.loop_stack.push(LoopContext {
+                    continue_target: loop_start,
+                    break_jumps: Vec::new(),
+                    loop_pos: *pos,
+                });
+
+                self.compile_expression(condition)?;
+                let false_jump = self.emit_jump(Opcode::JumpIfFalse, *pos)?;
+                self.emit_pop(*pos)?;
+
+                self.compile_block(body)?;
+                self.emit(Opcode::Jump, &[loop_start], *pos)?;
+
+                let cond_false_label = self.current_offset();
+                self.patch_jump(false_jump, cond_false_label)?;
+                self.emit_pop(*pos)?;
+                let loop_end = self.current_offset();
+
+                let loop_ctx = self.loop_stack.pop().ok_or_else(|| {
+                    CompileError::new("while loop context stack underflow", Some(*pos))
+                })?;
+                for break_jump in loop_ctx.break_jumps {
+                    self.patch_jump(break_jump, loop_end)?;
+                }
             }
             Statement::Break { pos } => {
-                return Err(CompileError::unsupported_statement("Break", *pos));
+                if self.loop_stack.is_empty() {
+                    // TODO(step-17): VM will translate this opcode into INVALID_CONTROL_FLOW.
+                    self.emit(Opcode::InvalidBreak, &[], *pos)?;
+                } else {
+                    let break_jump = self.emit_jump(Opcode::Jump, *pos)?;
+                    if let Some(loop_ctx) = self.current_loop_mut() {
+                        loop_ctx.break_jumps.push(break_jump);
+                    } else {
+                        return Err(CompileError::new(
+                            "break compilation lost loop context",
+                            Some(*pos),
+                        ));
+                    }
+                }
             }
             Statement::Continue { pos } => {
-                return Err(CompileError::unsupported_statement("Continue", *pos));
+                if let Some(loop_ctx) = self.current_loop() {
+                    self.emit(Opcode::Jump, &[loop_ctx.continue_target], *pos)?;
+                } else {
+                    // TODO(step-17): VM will translate this opcode into INVALID_CONTROL_FLOW.
+                    self.emit(Opcode::InvalidContinue, &[], *pos)?;
+                }
             }
         }
 
@@ -148,10 +202,29 @@ impl Compiler {
 
     #[allow(dead_code)]
     pub(crate) fn compile_block(&mut self, block: &BlockStatement) -> Result<(), CompileError> {
-        // TODO(step-13): reuse block compilation from conditional/loop compilation paths.
+        // TODO(step-14): function-body compilation will reuse statement-context block compilation.
         for stmt in &block.statements {
             self.compile_statement(stmt)?;
         }
+        Ok(())
+    }
+
+    fn compile_block_expression_value(
+        &mut self,
+        block: &BlockStatement,
+        owner_pos: Position,
+    ) -> Result<(), CompileError> {
+        // TODO(step-14): function-body expression mode can share this branch-value shaping.
+        self.compile_block(block)?;
+
+        if self.last_instruction_is(Opcode::Pop) {
+            self.remove_last_pop()?;
+        } else if !self.last_instruction_is(Opcode::ReturnValue)
+            && !self.last_instruction_is(Opcode::Return)
+        {
+            self.emit(Opcode::Null, &[], owner_pos)?;
+        }
+
         Ok(())
     }
 
@@ -195,7 +268,7 @@ impl Compiler {
                     }
                     _ => {
                         return Err(CompileError::new(
-                            format!("unsupported prefix operator in step 12: {operator}"),
+                            format!("unsupported prefix operator in step 13: {operator}"),
                             Some(*pos),
                         ));
                     }
@@ -264,16 +337,39 @@ impl Compiler {
                     ">=" => Opcode::Ge,
                     _ => {
                         return Err(CompileError::new(
-                            format!("unsupported infix operator in step 12: {operator}"),
+                            format!("unsupported infix operator in step 13: {operator}"),
                             Some(*pos),
                         ));
                     }
                 };
                 self.emit(opcode, &[], *pos)?;
             }
-            Expression::If { pos, .. } => {
-                // TODO(step-13): compile conditional expressions.
-                return Err(CompileError::unsupported_expression("If", *pos));
+            Expression::If {
+                condition,
+                consequence,
+                alternative,
+                pos,
+            } => {
+                self.compile_expression(condition)?;
+                let false_jump = self.emit_jump(Opcode::JumpIfFalse, *pos)?;
+                self.emit_pop(*pos)?;
+
+                self.compile_block_expression_value(consequence, *pos)?;
+                let end_jump = self.emit_jump(Opcode::Jump, *pos)?;
+
+                let false_branch = self.current_offset();
+                self.patch_jump(false_jump, false_branch)?;
+                self.emit_pop(*pos)?;
+
+                match alternative {
+                    Some(block) => self.compile_block_expression_value(block, *pos)?,
+                    None => {
+                        self.emit(Opcode::Null, &[], *pos)?;
+                    }
+                }
+
+                let end_offset = self.current_offset();
+                self.patch_jump(end_jump, end_offset)?;
             }
             Expression::FunctionLiteral { pos, .. } => {
                 // TODO(step-14): compile function literals and closures.
@@ -412,9 +508,69 @@ impl Compiler {
         Ok(())
     }
 
+    fn remove_last_instruction(&mut self) -> Result<(), CompileError> {
+        let Some(last) = self.last_instruction else {
+            return Err(CompileError::new(
+                "cannot remove last instruction: no instructions emitted",
+                None,
+            ));
+        };
+
+        self.chunk.instructions.truncate(last.offset);
+        self.record_last_instruction_from_tail()?;
+        Ok(())
+    }
+
+    fn remove_last_pop(&mut self) -> Result<(), CompileError> {
+        if !self.last_instruction_is(Opcode::Pop) {
+            return Err(CompileError::new(
+                "cannot remove last Pop: last instruction is not Pop",
+                None,
+            ));
+        }
+        self.remove_last_instruction()
+    }
+
     fn set_last_instruction(&mut self, opcode: Opcode, offset: usize) {
         self.previous_instruction = self.last_instruction;
         self.last_instruction = Some(EmittedInstruction { opcode, offset });
+    }
+
+    fn record_last_instruction_from_tail(&mut self) -> Result<(), CompileError> {
+        let mut decoded = Vec::new();
+        let mut offset = 0;
+
+        while offset < self.chunk.instructions.len() {
+            let byte = self.chunk.instructions[offset];
+            let Some(opcode) = Opcode::from_byte(byte) else {
+                return Err(CompileError::new(
+                    format!("unknown opcode byte {byte} at offset {offset}"),
+                    None,
+                ));
+            };
+            let def = crate::bytecode::lookup_definition(opcode);
+            let operand_len: usize = def.operand_widths.iter().sum();
+            let end = offset + 1 + operand_len;
+            if end > self.chunk.instructions.len() {
+                return Err(CompileError::new(
+                    format!(
+                        "truncated instruction while rebuilding instruction tracking at offset {offset}"
+                    ),
+                    None,
+                ));
+            }
+
+            decoded.push(EmittedInstruction { opcode, offset });
+            offset = end;
+        }
+
+        self.last_instruction = decoded.last().copied();
+        self.previous_instruction = if decoded.len() > 1 {
+            Some(decoded[decoded.len() - 2])
+        } else {
+            None
+        };
+        Ok(())
     }
 
     fn last_instruction_is(&self, opcode: Opcode) -> bool {
@@ -482,7 +638,7 @@ impl Compiler {
             SymbolScope::Function => {
                 return Err(CompileError::new(
                     format!(
-                        "unsupported function symbol load in step 12: {}",
+                        "unsupported function symbol load in step 13: {}",
                         symbol.name
                     ),
                     Some(pos),
@@ -500,6 +656,14 @@ impl Compiler {
             ),
             Some(pos),
         )
+    }
+
+    fn current_loop(&self) -> Option<&LoopContext> {
+        self.loop_stack.last()
+    }
+
+    fn current_loop_mut(&mut self) -> Option<&mut LoopContext> {
+        self.loop_stack.last_mut()
     }
 }
 

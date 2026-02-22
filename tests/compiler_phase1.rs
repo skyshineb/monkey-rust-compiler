@@ -255,23 +255,16 @@ fn compiles_builtin_identifier_load() {
 #[test]
 fn returns_deterministic_errors_for_unsupported_constructs() {
     let cases = [
-        ("if (true) { 1 }", "unsupported expression in step 12: If"),
         (
             "fn(x) { x }",
-            "unsupported expression in step 12: FunctionLiteral",
+            "unsupported expression in step 13: FunctionLiteral",
         ),
-        ("[1,2,3]", "unsupported expression in step 12: ArrayLiteral"),
+        ("[1,2,3]", "unsupported expression in step 13: ArrayLiteral"),
         (
             "{\"a\": 1}",
-            "unsupported expression in step 12: HashLiteral",
+            "unsupported expression in step 13: HashLiteral",
         ),
-        ("arr[0]", "unsupported expression in step 12: Index"),
-        (
-            "while (true) { }",
-            "unsupported statement in step 12: While",
-        ),
-        ("break;", "unsupported statement in step 12: Break"),
-        ("continue;", "unsupported statement in step 12: Continue"),
+        ("arr[0]", "unsupported expression in step 13: Index"),
     ];
 
     for (input, expected_message) in cases {
