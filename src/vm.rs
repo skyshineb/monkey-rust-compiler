@@ -1,7 +1,7 @@
 use crate::bytecode::Bytecode;
 use crate::object::Object;
 use crate::position::Position;
-use crate::runtime_error::{RuntimeError, RuntimeErrorKind};
+use crate::runtime_error::{RuntimeError, RuntimeErrorType};
 
 /// Virtual machine placeholder.
 #[derive(Debug, Clone)]
@@ -22,7 +22,7 @@ impl Vm {
 
     pub fn unsupported_placeholder(&self) -> RuntimeError {
         RuntimeError::new(
-            RuntimeErrorKind::UnsupportedOperation,
+            RuntimeErrorType::UnsupportedOperation,
             "VM operation not implemented yet",
             Position::default(),
         )
