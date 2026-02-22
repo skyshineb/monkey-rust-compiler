@@ -7,7 +7,7 @@ use monkey_rust_compiler::token::TokenKind;
 fn position_default_is_one_based() {
     let pos = Position::default();
     assert_eq!(pos.line, 1);
-    assert_eq!(pos.column, 1);
+    assert_eq!(pos.col, 1);
     assert_eq!(pos.to_string(), "1:1");
 }
 
