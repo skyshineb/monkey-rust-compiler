@@ -62,7 +62,7 @@ fn compiles_and_with_short_circuit_shape() {
     assert_eq!(simple[6].0, Opcode::Jump);
     assert_eq!(simple[7], (Opcode::Pop, vec![]));
     assert_eq!(simple[8], (Opcode::False, vec![]));
-    assert_eq!(simple[9], (Opcode::Pop, vec![]));
+    assert_eq!(simple[9], (Opcode::ReturnValue, vec![]));
 
     let jump_if_false_target = simple[1].1[0];
     let jump_end_target = simple[6].1[0];
@@ -88,7 +88,7 @@ fn compiles_or_with_short_circuit_shape() {
     assert_eq!(simple[6], (Opcode::True, vec![]));
     assert_eq!(simple[7], (Opcode::Bang, vec![]));
     assert_eq!(simple[8], (Opcode::Bang, vec![]));
-    assert_eq!(simple[9], (Opcode::Pop, vec![]));
+    assert_eq!(simple[9], (Opcode::ReturnValue, vec![]));
 
     let jump_if_false_target = simple[1].1[0];
     let jump_end_target = simple[4].1[0];
@@ -239,12 +239,12 @@ fn non_logical_infix_regression_unchanged() {
 #[test]
 fn unsupported_constructs_still_error() {
     let cases = [
-        ("if (true) { 1 }", "unsupported expression in step 10: If"),
+        ("if (true) { 1 }", "unsupported expression in step 12: If"),
         (
             "fn(x) { x }",
-            "unsupported expression in step 10: FunctionLiteral",
+            "unsupported expression in step 12: FunctionLiteral",
         ),
-        ("[1, 2]", "unsupported expression in step 10: ArrayLiteral"),
+        ("[1, 2]", "unsupported expression in step 12: ArrayLiteral"),
     ];
 
     for (input, expected) in cases {

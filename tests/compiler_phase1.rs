@@ -55,22 +55,22 @@ fn compiles_literals_and_expression_pop() {
     let cases = [
         (
             "1;",
-            vec![(Opcode::Constant, vec![0]), (Opcode::Pop, vec![])],
+            vec![(Opcode::Constant, vec![0]), (Opcode::ReturnValue, vec![])],
             vec![Object::Integer(1)],
         ),
         (
             "true;",
-            vec![(Opcode::True, vec![]), (Opcode::Pop, vec![])],
+            vec![(Opcode::True, vec![]), (Opcode::ReturnValue, vec![])],
             vec![],
         ),
         (
             "false;",
-            vec![(Opcode::False, vec![]), (Opcode::Pop, vec![])],
+            vec![(Opcode::False, vec![]), (Opcode::ReturnValue, vec![])],
             vec![],
         ),
         (
             "\"abc\";",
-            vec![(Opcode::Constant, vec![0]), (Opcode::Pop, vec![])],
+            vec![(Opcode::Constant, vec![0]), (Opcode::ReturnValue, vec![])],
             vec![Object::String("abc".to_string())],
         ),
     ];
@@ -100,7 +100,7 @@ fn compiles_prefix_expressions() {
             vec![
                 (Opcode::True, vec![]),
                 (Opcode::Bang, vec![]),
-                (Opcode::Pop, vec![]),
+                (Opcode::ReturnValue, vec![]),
             ],
             vec![],
         ),
@@ -109,7 +109,7 @@ fn compiles_prefix_expressions() {
             vec![
                 (Opcode::Constant, vec![0]),
                 (Opcode::Neg, vec![]),
-                (Opcode::Pop, vec![]),
+                (Opcode::ReturnValue, vec![]),
             ],
             vec![Object::Integer(5)],
         ),
@@ -120,7 +120,7 @@ fn compiles_prefix_expressions() {
                 (Opcode::Constant, vec![1]),
                 (Opcode::Eq, vec![]),
                 (Opcode::Bang, vec![]),
-                (Opcode::Pop, vec![]),
+                (Opcode::ReturnValue, vec![]),
             ],
             vec![Object::Integer(1), Object::Integer(2)],
         ),
@@ -171,7 +171,7 @@ fn compiles_infix_expressions() {
                 (Opcode::Constant, vec![0]),
                 (Opcode::Constant, vec![1]),
                 (expected_op, vec![]),
-                (Opcode::Pop, vec![]),
+                (Opcode::ReturnValue, vec![]),
             ],
             "input={input}"
         );
@@ -194,7 +194,7 @@ fn grouped_precedence_uses_ast_shape() {
             (Opcode::Add, vec![]),
             (Opcode::Constant, vec![2]),
             (Opcode::Mul, vec![]),
-            (Opcode::Pop, vec![]),
+            (Opcode::ReturnValue, vec![]),
         ]
     );
 }
@@ -213,7 +213,7 @@ fn compiles_let_and_identifier_globals() {
             (Opcode::Constant, vec![0]),
             (Opcode::SetGlobal, vec![0]),
             (Opcode::GetGlobal, vec![0]),
-            (Opcode::Pop, vec![]),
+            (Opcode::ReturnValue, vec![]),
         ]
     );
 
@@ -233,7 +233,7 @@ fn compiles_let_and_identifier_globals() {
             (Opcode::GetGlobal, vec![0]),
             (Opcode::GetGlobal, vec![1]),
             (Opcode::Add, vec![]),
-            (Opcode::Pop, vec![]),
+            (Opcode::ReturnValue, vec![]),
         ]
     );
 }
@@ -248,31 +248,30 @@ fn compiles_builtin_identifier_load() {
 
     assert_eq!(
         decoded,
-        vec![(Opcode::GetBuiltin, vec![0]), (Opcode::Pop, vec![])]
+        vec![(Opcode::GetBuiltin, vec![0]), (Opcode::ReturnValue, vec![])]
     );
 }
 
 #[test]
 fn returns_deterministic_errors_for_unsupported_constructs() {
     let cases = [
-        ("if (true) { 1 }", "unsupported expression in step 10: If"),
+        ("if (true) { 1 }", "unsupported expression in step 12: If"),
         (
             "fn(x) { x }",
-            "unsupported expression in step 10: FunctionLiteral",
+            "unsupported expression in step 12: FunctionLiteral",
         ),
-        ("[1,2,3]", "unsupported expression in step 10: ArrayLiteral"),
+        ("[1,2,3]", "unsupported expression in step 12: ArrayLiteral"),
         (
             "{\"a\": 1}",
-            "unsupported expression in step 10: HashLiteral",
+            "unsupported expression in step 12: HashLiteral",
         ),
-        ("arr[0]", "unsupported expression in step 10: Index"),
+        ("arr[0]", "unsupported expression in step 12: Index"),
         (
             "while (true) { }",
-            "unsupported statement in step 10: While",
+            "unsupported statement in step 12: While",
         ),
-        ("return 1;", "unsupported statement in step 10: Return"),
-        ("break;", "unsupported statement in step 10: Break"),
-        ("continue;", "unsupported statement in step 10: Continue"),
+        ("break;", "unsupported statement in step 12: Break"),
+        ("continue;", "unsupported statement in step 12: Continue"),
     ];
 
     for (input, expected_message) in cases {
