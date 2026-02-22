@@ -3,6 +3,7 @@
 pub mod ast;
 pub mod builtins;
 pub mod bytecode;
+pub mod cli;
 pub mod compiler;
 pub mod lexer;
 pub mod object;
@@ -11,6 +12,7 @@ pub mod parser;
 pub mod position;
 pub mod pretty;
 pub mod repl;
+pub mod runner;
 pub mod runtime_error;
 pub mod source;
 pub mod symbol_table;
