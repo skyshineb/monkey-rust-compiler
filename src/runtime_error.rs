@@ -119,7 +119,6 @@ impl RuntimeError {
             return self.format_single_line();
         }
 
-        // TODO(step-17): VM will attach instruction-level call frames and source positions.
         let frames = self
             .stack
             .iter()

@@ -215,26 +215,30 @@ fn supported_runtime_errors_are_deterministic() {
 }
 
 #[test]
-fn deferred_opcode_boundary_errors_are_deterministic() {
-    let err = run_input("fn() { 1; };").expect_err("expected runtime error");
-    assert_eq!(err.error_type, RuntimeErrorType::UnsupportedOperation);
-    assert_eq!(err.message, "opcode not implemented in step 16: Closure");
-
-    let err = run_input("len(\"abc\");").expect_err("expected runtime error");
-    assert_eq!(err.error_type, RuntimeErrorType::UnsupportedOperation);
-    assert_eq!(err.message, "opcode not implemented in step 16: GetBuiltin");
-
-    let err = run_input("[1, 2];").expect_err("expected runtime error");
-    assert_eq!(err.error_type, RuntimeErrorType::UnsupportedOperation);
-    assert_eq!(err.message, "opcode not implemented in step 16: Array");
-
-    let err = run_input("{\"a\": 1};").expect_err("expected runtime error");
-    assert_eq!(err.error_type, RuntimeErrorType::UnsupportedOperation);
-    assert_eq!(err.message, "opcode not implemented in step 16: Hash");
-
-    let err = run_input("let a = 1; let i = 0; a[i];").expect_err("expected runtime error");
-    assert_eq!(err.error_type, RuntimeErrorType::UnsupportedOperation);
-    assert_eq!(err.message, "opcode not implemented in step 16: Index");
+fn phase2_opcodes_execute_without_boundary_errors() {
+    match run_input("let f = fn() { 1; }; f;").expect("vm run should succeed") {
+        Object::Closure(_) => {}
+        other => panic!("expected closure object, got {other:?}"),
+    }
+    assert_int(
+        run_input("len(\"abc\");").expect("vm run should succeed"),
+        3,
+    );
+    assert_eq!(
+        run_input("[1, 2];").expect("vm run should succeed"),
+        Object::Array(vec![Object::Integer(1).rc(), Object::Integer(2).rc()])
+    );
+    assert_eq!(
+        run_input("{\"a\": 1};").expect("vm run should succeed"),
+        Object::Hash(vec![(
+            Object::String("a".to_string()).rc(),
+            Object::Integer(1).rc()
+        )])
+    );
+    assert_int(
+        run_input("let a = [1, 2]; let i = 0; a[i];").expect("vm run should succeed"),
+        1,
+    );
 }
 
 #[test]
