@@ -8,5 +8,10 @@ pub fn format_tokens_placeholder(tokens: &[Token]) -> String {
 
 /// Placeholder AST rendering for future --ast mode.
 pub fn format_ast_placeholder(program: &Program) -> String {
-    format!("AST: {program}")
+    format_ast(program)
+}
+
+/// Deterministic AST rendering wrapper for future `--ast` mode.
+pub fn format_ast(program: &Program) -> String {
+    program.to_string()
 }
