@@ -173,18 +173,41 @@ impl Compiler {
             } => {
                 match operator.as_str() {
                     "&&" => {
-                        // TODO(step-11): implement short-circuit compilation for logical operators.
-                        return Err(CompileError::new(
-                            "logical operator && compilation is not implemented in step 10",
-                            Some(*pos),
-                        ));
+                        // TODO(step-12): reuse jump patching helpers for control-flow expressions/statements.
+                        self.compile_expression(left)?;
+                        let false_jump = self.emit_jump(Opcode::JumpIfFalse, *pos)?;
+                        self.emit_pop(*pos)?;
+
+                        self.compile_expression(right)?;
+                        self.emit_bool_normalize(*pos)?;
+                        let end_jump = self.emit_jump(Opcode::Jump, *pos)?;
+
+                        let false_branch = self.current_offset();
+                        self.patch_jump(false_jump, false_branch)?;
+                        self.emit_pop(*pos)?;
+                        self.emit(Opcode::False, &[], *pos)?;
+
+                        let end_offset = self.current_offset();
+                        self.patch_jump(end_jump, end_offset)?;
+                        return Ok(());
                     }
                     "||" => {
-                        // TODO(step-11): implement short-circuit compilation for logical operators.
-                        return Err(CompileError::new(
-                            "logical operator || compilation is not implemented in step 10",
-                            Some(*pos),
-                        ));
+                        // TODO(step-12): reuse jump patching helpers for control-flow expressions/statements.
+                        self.compile_expression(left)?;
+                        let rhs_jump = self.emit_jump(Opcode::JumpIfFalse, *pos)?;
+                        self.emit_pop(*pos)?;
+                        self.emit(Opcode::True, &[], *pos)?;
+                        let end_jump = self.emit_jump(Opcode::Jump, *pos)?;
+
+                        let rhs_offset = self.current_offset();
+                        self.patch_jump(rhs_jump, rhs_offset)?;
+                        self.emit_pop(*pos)?;
+                        self.compile_expression(right)?;
+                        self.emit_bool_normalize(*pos)?;
+
+                        let end_offset = self.current_offset();
+                        self.patch_jump(end_jump, end_offset)?;
+                        return Ok(());
                     }
                     _ => {}
                 }
@@ -266,6 +289,83 @@ impl Compiler {
         let offset = self.chunk.push_bytes(&bytes);
         self.chunk.record_pos(offset, pos);
         Ok(offset)
+    }
+
+    fn current_offset(&self) -> usize {
+        self.chunk.instructions.len()
+    }
+
+    fn emit_jump(&mut self, op: Opcode, pos: Position) -> Result<usize, CompileError> {
+        self.emit(op, &[0], pos)
+    }
+
+    fn patch_jump(&mut self, jump_offset: usize, target_offset: usize) -> Result<(), CompileError> {
+        if jump_offset >= self.chunk.instructions.len() {
+            return Err(CompileError::new(
+                format!(
+                    "invalid jump patch offset {} for instruction length {}",
+                    jump_offset,
+                    self.chunk.instructions.len()
+                ),
+                None,
+            ));
+        }
+
+        let opcode_byte = self.chunk.instructions[jump_offset];
+        let Some(opcode) = Opcode::from_byte(opcode_byte) else {
+            return Err(CompileError::new(
+                format!("cannot patch unknown opcode byte {opcode_byte} at {jump_offset}"),
+                None,
+            ));
+        };
+
+        if !matches!(opcode, Opcode::Jump | Opcode::JumpIfFalse) {
+            return Err(CompileError::new(
+                format!(
+                    "cannot patch non-jump opcode {} at {}",
+                    crate::bytecode::lookup_definition(opcode).name,
+                    jump_offset
+                ),
+                None,
+            ));
+        }
+
+        let patched = make(opcode, &[target_offset]).map_err(|err| {
+            CompileError::new(
+                format!(
+                    "failed to patch {} at {}: {err}",
+                    crate::bytecode::lookup_definition(opcode).name,
+                    jump_offset
+                ),
+                None,
+            )
+        })?;
+
+        let end = jump_offset + patched.len();
+        if end > self.chunk.instructions.len() {
+            return Err(CompileError::new(
+                format!(
+                    "patched jump overflows instruction buffer: {}..{} of {}",
+                    jump_offset,
+                    end,
+                    self.chunk.instructions.len()
+                ),
+                None,
+            ));
+        }
+
+        self.chunk.instructions[jump_offset..end].copy_from_slice(&patched);
+        Ok(())
+    }
+
+    fn emit_pop(&mut self, pos: Position) -> Result<usize, CompileError> {
+        self.emit(Opcode::Pop, &[], pos)
+    }
+
+    fn emit_bool_normalize(&mut self, pos: Position) -> Result<(), CompileError> {
+        self.emit(Opcode::Bang, &[], pos)?;
+        self.emit(Opcode::Bang, &[], pos)?;
+        Ok(())
     }
 
     fn add_constant(&mut self, obj: Object, _pos: Position) -> usize {

@@ -273,14 +273,6 @@ fn returns_deterministic_errors_for_unsupported_constructs() {
         ("return 1;", "unsupported statement in step 10: Return"),
         ("break;", "unsupported statement in step 10: Break"),
         ("continue;", "unsupported statement in step 10: Continue"),
-        (
-            "1 && 2;",
-            "logical operator && compilation is not implemented in step 10",
-        ),
-        (
-            "1 || 2;",
-            "logical operator || compilation is not implemented in step 10",
-        ),
     ];
 
     for (input, expected_message) in cases {
