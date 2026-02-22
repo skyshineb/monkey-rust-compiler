@@ -12,10 +12,11 @@ fn position_default_is_one_based() {
 }
 
 #[test]
-fn lexer_placeholder_returns_eof() {
+fn lexer_reads_first_token() {
     let mut lexer = Lexer::new("let x = 1;");
     let token = lexer.next_token();
-    assert_eq!(token.kind, TokenKind::Eof);
+    assert_eq!(token.kind, TokenKind::Let);
+    assert_eq!(token.literal, "let");
 }
 
 #[test]
