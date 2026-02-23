@@ -89,6 +89,29 @@ make bench
 ./scripts/bench.sh ./target/release/monkey
 ```
 
+Windows (`cmd`) benchmark runner:
+
+```bat
+cargo build --release
+scripts\bench.cmd
+```
+
+Rust vs Java comparison on Windows:
+
+```bat
+set MONKEY_JAVA_REF_CMD=java -jar C:\path\to\monkey-java.jar
+scripts\bench.cmd
+```
+
+Optional benchmark environment variables:
+
+```bat
+set MONKEY_RUST_BIN=C:\path\to\monkey.exe
+set BENCH_ROUNDS=5
+set BENCH_FILTER=b4
+scripts\bench.cmd
+```
+
 ## Repository layout
 
 - `src/` runtime/compiler/parser/CLI implementation
