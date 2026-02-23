@@ -17,6 +17,18 @@ fn defines_global_symbols_with_stable_indices() {
 }
 
 #[test]
+fn redefine_global_symbol_reuses_slot() {
+    let mut table = SymbolTable::new();
+
+    let first = table.define("x");
+    let second = table.define("x");
+
+    assert_eq!(first, Symbol::new("x", SymbolScope::Global, 0));
+    assert_eq!(second, Symbol::new("x", SymbolScope::Global, 0));
+    assert_eq!(table.num_definitions, 1);
+}
+
+#[test]
 fn defines_local_symbols_in_enclosed_scope() {
     let mut global = SymbolTable::new();
     let g = global.define("a");
@@ -33,6 +45,19 @@ fn defines_local_symbols_in_enclosed_scope() {
 
     let resolved_global = local.resolve("a").expect("resolve global from local");
     assert_eq!(resolved_global, Symbol::new("a", SymbolScope::Global, 0));
+}
+
+#[test]
+fn redefine_local_symbol_reuses_slot() {
+    let global_ref = SymbolTable::new().into_ref();
+    let mut local = SymbolTable::new_enclosed(global_ref);
+
+    let first = local.define("x");
+    let second = local.define("x");
+
+    assert_eq!(first, Symbol::new("x", SymbolScope::Local, 0));
+    assert_eq!(second, Symbol::new("x", SymbolScope::Local, 0));
+    assert_eq!(local.num_definitions, 1);
 }
 
 #[test]
@@ -54,6 +79,20 @@ fn builtins_are_defined_with_stable_indices_and_resolve_from_nested_scopes() {
             .expect("builtin should resolve from nested scope");
         assert_eq!(symbol, Symbol::new(*name, SymbolScope::Builtin, i));
     }
+}
+
+#[test]
+fn builtin_can_be_shadowed_by_global_definition() {
+    let mut table = SymbolTable::new();
+    define_builtins(&mut table);
+
+    let symbol = table.define("len");
+    assert_eq!(symbol, Symbol::new("len", SymbolScope::Global, 0));
+    assert_eq!(
+        table.resolve("len"),
+        Some(Symbol::new("len", SymbolScope::Global, 0))
+    );
+    assert_eq!(table.num_definitions, 1);
 }
 
 #[test]

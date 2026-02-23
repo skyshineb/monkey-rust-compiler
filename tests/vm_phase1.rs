@@ -176,6 +176,14 @@ fn executes_globals_if_while_and_return_semantics() {
 }
 
 #[test]
+fn same_scope_rebinding_in_conditional_path_uses_existing_slot() {
+    assert_int(
+        run_input("let x = 0; if (false) { let x = x + 1; }; x;").expect("vm run should succeed"),
+        0,
+    );
+}
+
+#[test]
 fn invalid_top_level_break_continue_are_runtime_errors() {
     let err = run_input("break;").expect_err("expected runtime error");
     assert_eq!(err.error_type, RuntimeErrorType::InvalidControlFlow);

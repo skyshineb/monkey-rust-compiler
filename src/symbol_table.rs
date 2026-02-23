@@ -82,6 +82,12 @@ impl SymbolTable {
             SymbolScope::Local
         };
 
+        if let Some(existing) = self.store.get(&name) {
+            if existing.scope == scope {
+                return existing.clone();
+            }
+        }
+
         let symbol = Symbol::new(name.clone(), scope, self.num_definitions);
         self.store.insert(name, symbol.clone());
         self.num_definitions += 1;
